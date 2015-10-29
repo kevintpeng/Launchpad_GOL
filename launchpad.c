@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include <math.h>
-#include <unistd.h>
 
 //#include <limit.h> 
 //#include <stdint.h> 
@@ -8,7 +7,7 @@
 // ----------------------------------
 //         DEMO IMPORTS
 // ----------------------------------
-extern "C" {
+/*extern "C" {
 #include <delay.h>
 #include <FillPat.h>
 #include <I2CEEPROM.h>
@@ -18,7 +17,7 @@ extern "C" {
 #include <OrbitOledChar.h>
 #include <OrbitOledGrph.h>
 }
-
+*/
 /* ------------------------------------------------------------ */
 /*				Global Variables		*/
 /* ------------------------------------------------------------ */
@@ -29,11 +28,10 @@ extern int ychOledMax; // defined in OrbitOled.c
 #define LENGTH 128 // maybe set to xchOledMax?
 #define HEIGHT 32
 char bitmap[LENGTH*HEIGHT/8];
-int aliveNow[LENGTH][HEIGHT];
-int aliveNext[LENGTH][HEIGHT];
+char aliveNow[LENGTH][HEIGHT];
+char aliveNext[LENGTH][HEIGHT];
 int count = 0;
 int current_count = 0;
-int total_iter = 0;
 
 int power(int base, int exponent) {
     //assert (exponent>=0);
@@ -43,7 +41,7 @@ int power(int base, int exponent) {
     return result;
  }
 
-int countLivingNeighbours(int i, int j){
+char countLivingNeighbours(int i, int j){
 	int surroundings = 0, k, l;
 	for(k=i-1;k<=i+1;k++){
 		for(l=j-1;l<=j+1;l++){
@@ -51,7 +49,7 @@ int countLivingNeighbours(int i, int j){
                     surroundings++;
 		}
 	}
-	return surroundings;
+	return (char)surroundings;
 }
 
 void fillNextArray(){
@@ -87,7 +85,7 @@ void populate(){
 	int i,j;
 	for(i=0;i<LENGTH;i++){
 		for(j=0;j<HEIGHT;j++){
-			aliveNow[i][j] = rand()%2;
+			aliveNow[i][j] = (char)rand()%2;
 		}
 	}
 }
@@ -132,24 +130,22 @@ int main(){
 		}*/
 
 		// CONSOLE PRINT
-		/*for(j=0;j<HEIGHT;j++){
+		for(j=0;j<HEIGHT;j++){
 			for(i=0;i<LENGTH;i++){
 				//printf("%d", aliveNext[i][j]);
 				if(aliveNow[i][j])printf("██");
 				else printf("  ");
 			}
 			printf("     %d\n",j);
-		}*/
-
+		}
 		if(checkStability()){
 			printf("STABLE  ");
 		}
 		else printf("UNSTABLE");
-		printf("   %d\n", ++total_iter);
 
-		OrbitOledMoveTo(0,0);
+	/*	OrbitOledMoveTo(0,0);
 		OrbitOledPutBmp(LENGTH,HEIGHT,bitmap);
-
+*/
 		usleep(100000);
 	}
 }
