@@ -1,16 +1,11 @@
 #include <stdio.h>
 #include <math.h>
-#include <unistd.h>
-
-//#include <limit.h> 
-//#include <stdint.h> 
 
 // ----------------------------------
 //         DEMO IMPORTS
 // ----------------------------------
 extern "C" {
 #include <delay.h>
-#include <FillPat.h>
 #include <I2CEEPROM.h>
 #include <LaunchPad.h>
 #include <OrbitBoosterPackDefs.h>
@@ -25,8 +20,8 @@ extern "C" {
 extern int xchOledMax; // defined in OrbitOled.c
 extern int ychOledMax; // defined in OrbitOled.c
 
-#define L_BITMAP 16
 #define LENGTH 128 // maybe set to xchOledMax?
+#define L_BITMAP 16
 #define HEIGHT 32
 char bitmap[LENGTH*HEIGHT/8];
 int aliveNow[LENGTH][HEIGHT];
@@ -201,7 +196,6 @@ void updateCurrentArray(){
 }
 
 void populate(){
-	srand(time(NULL));
 	int i,j;
 	for(i=0;i<LENGTH;i++){
 		for(j=0;j<HEIGHT;j++){
@@ -220,14 +214,14 @@ int checkStability(){
 
 void convert(){
 	int i,j,n=8, ret=0, index =0;
-	for(j=0;j<HEIGHT;j++){
-		for(i=0;i<LENGTH;i++){
+	for(j=0;j<LENGTH;j++){
+		for(i=0;i<HEIGHT;i++){
 			if(n==0){
 				bitmap[index++] = (char)ret;
 				n=8;
 				ret=0;
 			}
-			ret+= aliveNow[i][j] * power(2,--n);
+			ret+= aliveNow[j][i] * power(2,--n);
 		}
 	}
 }
