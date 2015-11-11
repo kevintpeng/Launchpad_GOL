@@ -1,14 +1,14 @@
+#include <stdio.h>
+#include <math.h>
+#include <unistd.h>
+
 //#include <limit.h> 
-//#include <stdint.h>
+//#include <stdint.h> 
 
 // ----------------------------------
 //         DEMO IMPORTS
 // ----------------------------------
 extern "C" {
-#include <stdio.h>
-#include <math.h>
-#include <time.h>
-#include <sys/time.h>
 #include <delay.h>
 #include <FillPat.h>
 #include <I2CEEPROM.h>
@@ -29,17 +29,11 @@ extern int ychOledMax; // defined in OrbitOled.c
 #define LENGTH 128 // maybe set to xchOledMax?
 #define HEIGHT 32
 char bitmap[LENGTH*HEIGHT/8];
-char aliveNow[LENGTH][HEIGHT];
-char aliveNext[LENGTH][HEIGHT];
+int aliveNow[LENGTH][HEIGHT];
+int aliveNext[LENGTH][HEIGHT];
 int count = 0;
 int current_count = 0;
-
-/* ------------------------------------------------------------ */
-/*				Local Variables			*/
-//* ------------------------------------------------------------ */
-char	chSwtCur;
-char	chSwtPrev;
-bool	fClearOled;
+int total_iter = 0;
 
 void setup(){
   
@@ -49,37 +43,8 @@ void setup(){
 
 void loop(){
   
-  unsigned long frameRate;
-  frameRate = 1000;
+  main();
   
-  time_t startTime;
-  time_t endTime;
-  unsigned long diffTime;
- 
-  time(&startTime);
-  
-  int q, i,j;
-	populate();
-	for(q=0;q<2;){
-		fillNextArray();
-		updateCurrentArray(); 
-		convert(); // converts the bool array to bitmap
-
-		if(checkStability()){
-			printf("STABLE  ");
-		}
-		else printf("UNSTABLE");
-
-		OrbitOledMoveTo(0,0);
-		OrbitOledPutBmp(LENGTH,HEIGHT,bitmap);
-                OrbitOledUpdate();
-	}
-
-  time(&endTime);
-  
-  diffTime = (unsigned long) difftime(endTime, startTime);
-  
-  delay(frameRate - diffTime);
 }
 
 
@@ -196,7 +161,7 @@ int power(int base, int exponent) {
     return result;
  }
 
-char countLivingNeighbours(int i, int j){
+int countLivingNeighbours(int i, int j){
 	int surroundings = 0, k, l;
 	for(k=i-1;k<=i+1;k++){
 		for(l=j-1;l<=j+1;l++){
@@ -204,7 +169,7 @@ char countLivingNeighbours(int i, int j){
                     surroundings++;
 		}
 	}
-	return (char)surroundings;
+	return surroundings;
 }
 
 void fillNextArray(){
@@ -236,12 +201,11 @@ void updateCurrentArray(){
 }
 
 void populate(){
-        time_t t;
-	srand((unsigned) time(&t));
+	srand(time(NULL));
 	int i,j;
 	for(i=0;i<LENGTH;i++){
 		for(j=0;j<HEIGHT;j++){
-			aliveNow[i][j] = (char)rand()%2;
+			aliveNow[i][j] = rand()%2;
 		}
 	}
 }
@@ -254,25 +218,56 @@ int checkStability(){
 	return ret;
 }
 
-void converta(){
-  int i,j,counter=0;
-  for(i=0;i<HEIGHT;i++){
-    for(j=0; j<LENGTH/8; j++){
-      bitmap[i*LENGTH/8+j]=1;
-    }
-  }
-}
-
 void convert(){
 	int i,j,n=8, ret=0, index =0;
 	for(j=0;j<HEIGHT;j++){
 		for(i=0;i<LENGTH;i++){
-			if(n==8){
+			if(n==0){
 				bitmap[index++] = (char)ret;
-				n=0;
+				n=8;
 				ret=0;
 			}
-			ret+= aliveNow[j][i] * power(2,n++);
+			ret+= aliveNow[i][j] * power(2,--n);
 		}
+	}
+}
+
+
+int main(){
+	int q, i,j;
+	populate();
+	for(q=0;q<2;){
+		fillNextArray();
+		updateCurrentArray(); 
+		convert(); // converts the bool array to bitmap
+
+		// HEX PRINT
+		/*for(j=0;j<HEIGHT;j++){
+			for(i=0;i<L_BITMAP;i++){
+				printf("0x%02hhX ",bitmap[j*L_BITMAP+i]);
+			}
+			printf("\n");
+		}*/
+
+		// CONSOLE PRINT
+		/*for(j=0;j<HEIGHT;j++){
+			for(i=0;i<LENGTH;i++){
+				//printf("%d", aliveNext[i][j]);
+				if(aliveNow[i][j])printf("██");
+				else printf("  ");
+			}
+			printf("     %d\n",j);
+		}*/
+
+		if(checkStability()){
+			printf("STABLE  ");
+		}
+		else printf("UNSTABLE");
+		printf("   %d\n", ++total_iter);
+
+		OrbitOledMoveTo(0,0);
+		OrbitOledPutBmp(LENGTH,HEIGHT,bitmap);
+
+		usleep(100000);
 	}
 }
