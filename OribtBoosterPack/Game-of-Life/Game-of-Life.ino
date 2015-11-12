@@ -1,3 +1,6 @@
+#include <stdio.h>
+#include <math.h>
+#include <unistd.h>
 
 //#include <limit.h> 
 //#include <stdint.h> 
@@ -6,9 +9,6 @@
 //         DEMO IMPORTS
 // ----------------------------------
 extern "C" {
-  #include <stdio.h>
-#include <math.h>
-
 #include <delay.h>
 #include <FillPat.h>
 #include <I2CEEPROM.h>
@@ -268,7 +268,6 @@ int main(){
 		OrbitOledMoveTo(0,0);
 		OrbitOledPutBmp(LENGTH,HEIGHT,bitmap);
 
-		//usleep(100000);
+		usleep(100000);
 	}
 }
-

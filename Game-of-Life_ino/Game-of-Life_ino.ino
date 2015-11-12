@@ -6,9 +6,8 @@
 //         DEMO IMPORTS
 // ----------------------------------
 extern "C" {
-  #include <stdio.h>
+#include <stdio.h>
 #include <math.h>
-
 #include <delay.h>
 #include <FillPat.h>
 #include <I2CEEPROM.h>
@@ -25,25 +24,51 @@ extern "C" {
 extern int xchOledMax; // defined in OrbitOled.c
 extern int ychOledMax; // defined in OrbitOled.c
 
-#define L_BITMAP 16
+#define L_BITMAP 8
 #define LENGTH 128 // maybe set to xchOledMax?
 #define HEIGHT 32
 char bitmap[LENGTH*HEIGHT/8];
-int aliveNow[LENGTH][HEIGHT];
-int aliveNext[LENGTH][HEIGHT];
+char aliveNow[LENGTH][HEIGHT];
+char aliveNext[LENGTH][HEIGHT];
 int count = 0;
 int current_count = 0;
 int total_iter = 0;
+int framerate_check[10] = {100,100,100,100,100,100,100,100,100,100};
 
 void setup(){
   
   DeviceInit();
+  pinMode(RED_LED, OUTPUT);
+  pinMode(GREEN_LED, OUTPUT);
   
 }
 
 void loop(){
-  
-  main();
+  int q, i,j, greenness=0, delay_time=0;
+	populate();
+	for(q=0;q<2;){
+		fillNextArray();
+		updateCurrentArray(); 
+		convert(); // converts the bool array to bitmap
+
+		if(checkStability()) {
+                  if(greenness<250)greenness+=25;
+                   analogWrite(GREEN_LED, greenness);
+                  analogWrite(RED_LED, 255-greenness);
+		}
+                else {
+                  if(greenness>0) greenness-=25;
+                  analogWrite(GREEN_LED, greenness);
+                  analogWrite(RED_LED, 255-greenness);
+                }
+		OrbitOledMoveTo(0,0);
+		OrbitOledPutBmp(LENGTH,HEIGHT,bitmap);
+                OrbitOledUpdate();
+                
+                delay_time = msBettweenFrame()/50;
+                
+                delay(delay_time);
+	}
   
 }
 
@@ -138,6 +163,7 @@ void DeviceInit()
   ADCSequenceConfigure(ADC0_BASE, 0, ADC_TRIGGER_PROCESSOR, 0);
   ADCSequenceStepConfigure(ADC0_BASE, 0, 0, ADC_CTL_IE | ADC_CTL_END | ADC_CTL_CH0);
   ADCSequenceEnable(ADC0_BASE, 0);
+     ADCProcessorTrigger(ADC0_BASE, 0);
 
   /*
    * Initialize the OLED
@@ -147,9 +173,6 @@ void DeviceInit()
   /*
    * Reset flags
    */
-  chSwtCur = 0;
-  chSwtPrev = 0;
-  fClearOled = true;
 
 }
 
@@ -201,7 +224,6 @@ void updateCurrentArray(){
 }
 
 void populate(){
-	srand(time(NULL));
 	int i,j;
 	for(i=0;i<LENGTH;i++){
 		for(j=0;j<HEIGHT;j++){
@@ -218,57 +240,156 @@ int checkStability(){
 	return ret;
 }
 
+
+
 void convert(){
-	int i,j,n=8, ret=0, index =0;
-	for(j=0;j<HEIGHT;j++){
-		for(i=0;i<LENGTH;i++){
-			if(n==0){
-				bitmap[index++] = (char)ret;
-				n=8;
-				ret=0;
-			}
-			ret+= aliveNow[i][j] * power(2,--n);
-		}
-	}
+  int l=0, w=0, cell=0, ret=0, index =0;
+  for(w=0;w<HEIGHT;w+=8){
+  for(l=0;l<LENGTH;l++){
+    
+      ret = 0;
+      for(cell=0;cell<8;cell++){
+        ret |= aliveNow[l][w+cell] << cell;
+      }
+      bitmap[index++]=(char)ret;
+    }
+  }
 }
 
 
-int main(){
-	int q, i,j;
-	populate();
-	for(q=0;q<2;){
-		fillNextArray();
-		updateCurrentArray(); 
-		convert(); // converts the bool array to bitmap
+int msBettweenFrame(){ // Returns the time between frames in ms according to the value given by the potentiometer 
 
-		// HEX PRINT
-		/*for(j=0;j<HEIGHT;j++){
-			for(i=0;i<L_BITMAP;i++){
-				printf("0x%02hhX ",bitmap[j*L_BITMAP+i]);
-			}
-			printf("\n");
-		}*/
 
-		// CONSOLE PRINT
-		/*for(j=0;j<HEIGHT;j++){
-			for(i=0;i<LENGTH;i++){
-				//printf("%d", aliveNext[i][j]);
-				if(aliveNow[i][j])printf("██");
-				else printf("  ");
-			}
-			printf("     %d\n",j);
-		}*/
+	uint32_t	ulAIN0;
+	char		szAIN[6] = {0};
+	char		cMSB = 0x00;
+	char		cMIDB = 0x00;
+	char		cLSB = 0x00;
+	int 		potValue = 0;
+	double 		maxFPS = 10.0;
+	int 		fastestMs = (int) (1000.0 / (maxFPS)); // msPerFrame = 1000 / FPS
+	int 		mult =1; 
 
-		if(checkStability()){
-			printf("STABLE  ");
-		}
-		else printf("UNSTABLE");
-		printf("   %d\n", ++total_iter);
+  /*
+   * Initiate ADC Conversion
+   */
+        ADCProcessorTrigger(ADC0_BASE, 0);
 
-		OrbitOledMoveTo(0,0);
-		OrbitOledPutBmp(LENGTH,HEIGHT,bitmap);
+   ADCSequenceDataGet(ADC0_BASE, 0, &ulAIN0);
 
-		//usleep(100000);
-	}
+  /*
+   * Process data
+   */
+   cMSB = (0xF00 & ulAIN0) >> 8;
+   cMIDB = (0x0F0 & ulAIN0) >> 4;
+   cLSB = (0x00F & ulAIN0);
+
+   szAIN[0] = '0';
+   szAIN[1] = 'x';
+   szAIN[2] = (cMSB > 9) ? 'A' + (cMSB - 10) : '0' + cMSB;
+   szAIN[3] = (cMIDB > 9) ? 'A' + (cMIDB - 10) : '0' + cMIDB;
+   szAIN[4] = (cLSB > 9) ? 'A' + (cLSB - 10) : '0' + cLSB;
+   szAIN[5] = '\0';
+	// szAIN[2-4] contains the hex value from the potentiometer 
+
+   // Take the chars & use a switch to convert it to the right numerical value
+ 
+   for (int i = 4; i >=2; i--){
+
+   	// Gets me what I need to multiply by to convert
+   	if (i == 4){
+   		mult = 256;
+   	} else if (i == 3){
+   		mult = 16;
+   	} else {
+   		mult = 1; 
+   	}
+
+   	switch (szAIN[i]){
+
+   	case '0':
+   	potValue += 0;
+   	break;
+   	case '1':
+   	potValue += 1 * mult;
+   	break;
+   	case '2':
+   	potValue += 2 * mult;
+   	break;
+   	case '3':
+   	potValue += 3 * mult;
+   	break;
+   	case '4':
+   	potValue += 4 * mult;
+   	break;
+   	case '5':
+   	potValue += 5 * mult;
+   	break;
+   	case '6' :
+   	potValue += 6 * mult;
+   	break;
+   	case '7':
+   	potValue += 7 * mult;
+   	break;
+   	case '8':
+   	potValue += 8 * mult;
+   	break;
+   	case '9':
+   	potValue += 9 * mult;
+   	break;
+   	case 'A':
+   	potValue += 10 * mult;
+   	break;
+   	case 'B':
+   	potValue += 11 * mult;
+   	break;
+   	case  'C':
+   	potValue += 12 * mult;
+   	break;
+   	case 'D':
+   	potValue += 13 * mult;
+   	break;
+   	case 'E':
+   	potValue += 14 * mult;
+   	break;
+   	case 'F':
+   	potValue += 15 * mult;
+   	break;
+   }
+
+   } // for
+
+  return potValue;
+   if ( 0 <= potValue && potValue < 406){
+   	return fastestMs * 10;
+   }
+   if (  406 <= potValue && potValue < 812){
+   	return fastestMs * 9;
+   }
+   if (  812 <= potValue && potValue < 1218){
+   	return fastestMs * 8;
+   }
+   if (  1218 <= potValue && potValue < 1624){
+   	return fastestMs * 7;
+   }
+   if (  1624 <= potValue && potValue < 2030){
+   	return fastestMs * 6;
+   }
+   if (  2030 <= potValue && potValue < 2436){
+   	return fastestMs * 5;
+   }
+   if (  2436 <= potValue && potValue < 2842){
+   	return fastestMs * 4;
+   }
+   if (  2842 <= potValue && potValue < 3248){
+   	return fastestMs * 3;
+   }
+   if (  3248 <= potValue && potValue < 3654){
+   	return fastestMs * 2;
+   }
+   if (  3654 <= potValue && potValue <= 495){
+   	return fastestMs;
+   }
+ 
+
 }
-

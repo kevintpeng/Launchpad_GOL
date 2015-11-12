@@ -1,14 +1,4 @@
-
-//#include <limit.h> 
-//#include <stdint.h> 
-
-// ----------------------------------
-//         DEMO IMPORTS
-// ----------------------------------
 extern "C" {
-  #include <stdio.h>
-#include <math.h>
-
 #include <delay.h>
 #include <FillPat.h>
 #include <I2CEEPROM.h>
@@ -17,7 +7,21 @@ extern "C" {
 #include <OrbitOled.h>
 #include <OrbitOledChar.h>
 #include <OrbitOledGrph.h>
+#include <math.h>
 }
+
+
+/* ------------------------------------------------------------ */
+/*				Local Type Definitions		*/
+/* ------------------------------------------------------------ */
+#define DEMO_0		0
+#define DEMO_1		2
+#define DEMO_2		1
+#define DEMO_3		3
+#define RED_LED   GPIO_PIN_1
+#define BLUE_LED  GPIO_PIN_2
+#define GREEN_LED GPIO_PIN_3
+
 
 /* ------------------------------------------------------------ */
 /*				Global Variables		*/
@@ -25,15 +29,63 @@ extern "C" {
 extern int xchOledMax; // defined in OrbitOled.c
 extern int ychOledMax; // defined in OrbitOled.c
 
-#define L_BITMAP 16
-#define LENGTH 128 // maybe set to xchOledMax?
-#define HEIGHT 32
-char bitmap[LENGTH*HEIGHT/8];
-int aliveNow[LENGTH][HEIGHT];
-int aliveNext[LENGTH][HEIGHT];
-int count = 0;
-int current_count = 0;
-int total_iter = 0;
+
+/* ------------------------------------------------------------ */
+/*				Local Variables			*/
+//* ------------------------------------------------------------ */
+char	chSwtCur;
+char	chSwtPrev;
+bool	fClearOled;
+
+/*
+ * Rocket Definitions
+ */
+
+// Define the top left corner of rocket
+int	xcoRocketStart 	= 48; //8*6
+int	ycoRocketStart	= 11;
+
+int	xcoExhstStart	= 39;
+int	ycoExhstStart	= 11;
+
+int	cRocketWidth 	= 24;
+int	cRocketHeight 	= 16;
+
+int	cExhstWidth	= 9;
+int	cExhstHeight	= 16;
+
+int	fExhstSwt	= 0;
+
+char	rgBMPRocket[] = {
+  0xFF, 0x11, 0xF1, 0x11, 0xF1, 0x12, 0x14, 0x18,
+  0x90, 0x10, 0x10, 0x10, 0x10, 0x10, 0x90, 0x10,
+  0x10, 0xE0, 0xC0, 0x80, 0x80, 0x80, 0x80, 0x80,
+  0xFF, 0x88, 0x8F, 0x88, 0x8F, 0x48, 0x28, 0x19,
+  0x0A, 0x09, 0x08, 0x08, 0x08, 0x09, 0x0A, 0x09,
+  0x08, 0x07, 0x03, 0x01, 0x01, 0x01, 0x01, 0x01};
+
+char	rgBMPExhst1[] = {
+  0x00, 0x00, 0x00, 0x00, 0x80, 0xC0, 0xE0, 0xF0, 0xF0,
+  0x00, 0x00, 0x00, 0x00, 0x01, 0x03, 0x07, 0x0F, 0x0F};
+
+char	rgBMPExhst2[] = {
+  0x00, 0x80, 0x80, 0xC0, 0xE0, 0xE0, 0xF0, 0xF0, 0xF0,
+  0x00, 0x01, 0x01, 0x03, 0x07, 0x07, 0x0F, 0x0F, 0x0F};
+
+/* ------------------------------------------------------------ */
+/*				Forward Declarations							*/
+/* ------------------------------------------------------------ */
+void DeviceInit();
+char CheckSwitches();
+void OrbitSetOled();
+
+void RocketRight(int xcoUpdate, int ycoUpdate);
+void RocketLeft(int xcoUpdate, int ycoUpdate);
+void RocketStop(int xcoUpdate, int ycoUpdate, bool fDir);
+
+char I2CGenTransmit(char * pbData, int cSize, bool fRW, char bAddr);
+bool I2CGenIsNotIdle();
+
 
 void setup(){
   
@@ -43,7 +95,15 @@ void setup(){
 
 void loop(){
   
-  main();
+  int randArray[32][127];
+  
+  for (int i = 0; i < 32; i++){
+    for (int j = 0; j < 127; j++){
+      randArray[i][j] = rand()%2;
+    }
+  }
+  
+  DrawScreen(randArray, 32, 127);
   
 }
 
@@ -153,122 +213,33 @@ void DeviceInit()
 
 }
 
-int power(int base, int exponent) {
-    //assert (exponent>=0);
-    int i, result = 1;
-    for (i = 0; i < exponent; i++)
-        result *= base;
-    return result;
- }
+void DrawScreen(int screen[][127], int h, int w){
+  
+  if(fClearOled == true) { //If applicable, reset OLED
+    OrbitOledClear();
+    OrbitOledMoveTo(0,0);
+    OrbitOledSetCursor(0,0);
+    fClearOled = false;
+  }
+  
+  //OrbitOledClear();
+    
+  for (int i = 0; i < h; i++){
+    for (int j = 0; j < w; j++){
+      if(screen[i][j]) DrawPixel(i, j);
+    } 
+  }
+  
+}  
 
-int countLivingNeighbours(int i, int j){
-	int surroundings = 0, k, l;
-	for(k=i-1;k<=i+1;k++){
-		for(l=j-1;l<=j+1;l++){
-			if (0<=k && k< LENGTH && 0<=l && l< HEIGHT && !(k==i && l==j) && aliveNow[k][l])
-                    surroundings++;
-		}
-	}
-	return surroundings;
+void DrawPixel(int y, int x) {
+  
+  //OrbitOledClear();
+  
+  OrbitOledMoveTo(x,y);
+  OrbitOledLineTo(x+1, y);
+    
+  char*	start = '\0';
+  OrbitOledPutString(start);
+  
 }
-
-void fillNextArray(){
-	int i,j;
-	for(i=0;i<LENGTH;i++){
-		for(j=0;j<HEIGHT;j++){
-			aliveNext[i][j] = countLivingNeighbours(i,j);
-		}
-	}
-}
-
-void updateCurrentArray(){
-	int i,j;
-	for(i=0;i<LENGTH;i++){
-		for(j=0;j<HEIGHT;j++){
-			if(aliveNow[i][j]){
-				if(aliveNext[i][j]<2) aliveNow[i][j]=0;
-				else if(aliveNext[i][j]>3) aliveNow[i][j]=0;
-				else current_count++;
-			}
-			else{
-				if(aliveNext[i][j]==3) {
-					aliveNow[i][j]=1;
-					current_count++;
-				}
-			}
-		}
-	}
-}
-
-void populate(){
-	srand(time(NULL));
-	int i,j;
-	for(i=0;i<LENGTH;i++){
-		for(j=0;j<HEIGHT;j++){
-			aliveNow[i][j] = rand()%2;
-		}
-	}
-}
-
-int checkStability(){
-	int ret = 0;
-	if(current_count==count) ret = 1;
-	count = current_count;
-	current_count = 0;
-	return ret;
-}
-
-void convert(){
-	int i,j,n=8, ret=0, index =0;
-	for(j=0;j<HEIGHT;j++){
-		for(i=0;i<LENGTH;i++){
-			if(n==0){
-				bitmap[index++] = (char)ret;
-				n=8;
-				ret=0;
-			}
-			ret+= aliveNow[i][j] * power(2,--n);
-		}
-	}
-}
-
-
-int main(){
-	int q, i,j;
-	populate();
-	for(q=0;q<2;){
-		fillNextArray();
-		updateCurrentArray(); 
-		convert(); // converts the bool array to bitmap
-
-		// HEX PRINT
-		/*for(j=0;j<HEIGHT;j++){
-			for(i=0;i<L_BITMAP;i++){
-				printf("0x%02hhX ",bitmap[j*L_BITMAP+i]);
-			}
-			printf("\n");
-		}*/
-
-		// CONSOLE PRINT
-		/*for(j=0;j<HEIGHT;j++){
-			for(i=0;i<LENGTH;i++){
-				//printf("%d", aliveNext[i][j]);
-				if(aliveNow[i][j])printf("██");
-				else printf("  ");
-			}
-			printf("     %d\n",j);
-		}*/
-
-		if(checkStability()){
-			printf("STABLE  ");
-		}
-		else printf("UNSTABLE");
-		printf("   %d\n", ++total_iter);
-
-		OrbitOledMoveTo(0,0);
-		OrbitOledPutBmp(LENGTH,HEIGHT,bitmap);
-
-		//usleep(100000);
-	}
-}
-

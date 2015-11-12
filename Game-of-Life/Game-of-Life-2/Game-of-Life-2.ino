@@ -1,4 +1,5 @@
-
+#include <stdio.h>
+#include <math.h>
 //#include <limit.h> 
 //#include <stdint.h> 
 
@@ -6,9 +7,6 @@
 //         DEMO IMPORTS
 // ----------------------------------
 extern "C" {
-  #include <stdio.h>
-#include <math.h>
-
 #include <delay.h>
 #include <FillPat.h>
 #include <I2CEEPROM.h>
@@ -20,6 +18,13 @@ extern "C" {
 }
 
 /* ------------------------------------------------------------ */
+/*				Local Variables			*/
+//* ------------------------------------------------------------ */
+char	chSwtCur;
+char	chSwtPrev;
+bool	fClearOled;
+
+/* ------------------------------------------------------------ */
 /*				Global Variables		*/
 /* ------------------------------------------------------------ */
 extern int xchOledMax; // defined in OrbitOled.c
@@ -29,8 +34,8 @@ extern int ychOledMax; // defined in OrbitOled.c
 #define LENGTH 128 // maybe set to xchOledMax?
 #define HEIGHT 32
 char bitmap[LENGTH*HEIGHT/8];
-int aliveNow[LENGTH][HEIGHT];
-int aliveNext[LENGTH][HEIGHT];
+char aliveNow[LENGTH][HEIGHT];
+char aliveNext[LENGTH][HEIGHT];
 int count = 0;
 int current_count = 0;
 int total_iter = 0;
@@ -201,7 +206,6 @@ void updateCurrentArray(){
 }
 
 void populate(){
-	srand(time(NULL));
 	int i,j;
 	for(i=0;i<LENGTH;i++){
 		for(j=0;j<HEIGHT;j++){
@@ -271,4 +275,3 @@ int main(){
 		//usleep(100000);
 	}
 }
-
