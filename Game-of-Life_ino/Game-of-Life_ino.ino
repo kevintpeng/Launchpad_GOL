@@ -24,6 +24,7 @@ extern "C" {
 extern int xchOledMax; // defined in OrbitOled.c
 extern int ychOledMax; // defined in OrbitOled.c
 
+#define BUFFER 5
 #define L_BITMAP 8
 #define LENGTH 128 // maybe set to xchOledMax?
 #define HEIGHT 32
@@ -33,7 +34,6 @@ char aliveNext[LENGTH][HEIGHT];
 int count = 0;
 int current_count = 0;
 int total_iter = 0;
-int framerate_check[10] = {100,100,100,100,100,100,100,100,100,100};
 
 void setup(){
   
@@ -44,7 +44,8 @@ void setup(){
 }
 
 void loop(){
-  int q, i,j, greenness=0, delay_time=0;
+  int q, i,j, greenness=0, delay_time=0, current_iter=0;
+  int framerate_buffer[BUFFER] = {0};
 	populate();
 	for(q=0;q<2;){
 		fillNextArray();
@@ -52,22 +53,31 @@ void loop(){
 		convert(); // converts the bool array to bitmap
 
 		if(checkStability()) {
-                  if(greenness<250)greenness+=25;
+                  if(greenness<250)greenness+=5;
                    analogWrite(GREEN_LED, greenness);
                   analogWrite(RED_LED, 255-greenness);
 		}
                 else {
-                  if(greenness>0) greenness-=25;
+                  if(greenness>0) greenness-=5;
                   analogWrite(GREEN_LED, greenness);
                   analogWrite(RED_LED, 255-greenness);
                 }
 		OrbitOledMoveTo(0,0);
 		OrbitOledPutBmp(LENGTH,HEIGHT,bitmap);
                 OrbitOledUpdate();
+                int sum=0;                
+                delay_time = msBettweenFrame()/40;
+
+                for(i=0;i<BUFFER;i++){
+                  if(i==current_iter) {
+                    framerate_buffer[i]=delay_time;
+            
+                  }
+                  sum+=framerate_buffer[i];
+                }
+                if(++current_iter>BUFFER)current_iter=0;
                 
-                delay_time = msBettweenFrame()/50;
-                
-                delay(delay_time);
+                delay(sum/BUFFER);
 	}
   
 }
