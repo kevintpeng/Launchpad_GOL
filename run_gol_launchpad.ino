@@ -1,4 +1,3 @@
-
 //#include <limit.h> 
 //#include <stdint.h> 
 
@@ -44,8 +43,11 @@ void setup(){
 }
 
 void loop(){
+  srand((unsigned int)(msBettweenFrame()*accelerometer_seed()));
+        
   int q, i,j, greenness=0, delay_time=0, current_iter=0;
   int framerate_buffer[BUFFER] = {0};
+  //int accel_buffer[4] = {0};
 	populate();
 	for(q=0;q<2;){
 		fillNextArray();
@@ -55,7 +57,7 @@ void loop(){
 		if(checkStability()) {
                   if(greenness<250)greenness+=5;
                    analogWrite(GREEN_LED, greenness);
-                  analogWrite(RED_LED, 255-greenness);
+                   analogWrite(RED_LED, 255-greenness);
 		}
                 else {
                   if(greenness>0) greenness-=5;
@@ -71,17 +73,16 @@ void loop(){
                 for(i=0;i<BUFFER;i++){
                   if(i==current_iter) {
                     framerate_buffer[i]=delay_time;
-            
                   }
                   sum+=framerate_buffer[i];
                 }
                 if(++current_iter>BUFFER)current_iter=0;
                 
+                if(accelerometer()) repopulate();
+                
                 delay(sum/BUFFER);
 	}
-  
 }
-
 
 /* ------------------------------------------------------------ */
 /***	DeviceInit
@@ -234,12 +235,17 @@ void updateCurrentArray(){
 }
 
 void populate(){
-	int i,j;
+        
+        int i,j;
 	for(i=0;i<LENGTH;i++){
 		for(j=0;j<HEIGHT;j++){
 			aliveNow[i][j] = rand()%2;
 		}
 	}
+}
+
+void repopulate(){
+        populate();
 }
 
 int checkStability(){
@@ -370,36 +376,284 @@ int msBettweenFrame(){ // Returns the time between frames in ms according to the
    } // for
 
   return potValue;
-   if ( 0 <= potValue && potValue < 406){
-   	return fastestMs * 10;
-   }
-   if (  406 <= potValue && potValue < 812){
-   	return fastestMs * 9;
-   }
-   if (  812 <= potValue && potValue < 1218){
-   	return fastestMs * 8;
-   }
-   if (  1218 <= potValue && potValue < 1624){
-   	return fastestMs * 7;
-   }
-   if (  1624 <= potValue && potValue < 2030){
-   	return fastestMs * 6;
-   }
-   if (  2030 <= potValue && potValue < 2436){
-   	return fastestMs * 5;
-   }
-   if (  2436 <= potValue && potValue < 2842){
-   	return fastestMs * 4;
-   }
-   if (  2842 <= potValue && potValue < 3248){
-   	return fastestMs * 3;
-   }
-   if (  3248 <= potValue && potValue < 3654){
-   	return fastestMs * 2;
-   }
-   if (  3654 <= potValue && potValue <= 495){
-   	return fastestMs;
-   }
- 
+}
+
+int accelerometer(){  //int accel_buffer[]){
+  
+  short	dataX;
+  short dataY;
+  short dataZ;
+  int refresh;
+  
+  char  chPwrCtlReg = 0x2D;
+  char 	chX0Addr = 0x32;
+  char  chY0Addr = 0x34;
+  char  chZ0Addr = 0x36;
+  
+  char 	rgchReadAccl[] = {
+    0, 0, 0            };
+  char 	rgchWriteAccl[] = {
+    0, 0            };
+  char  rgchReadAccl2[] = {
+    0, 0, 0            };  
+  char  rgchReadAccl3[] = {
+    0, 0, 0            };
+    
+    /*
+     * Enable I2C Peripheral
+     */
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_I2C0);
+    SysCtlPeripheralReset(SYSCTL_PERIPH_I2C0);
+
+    /*
+     * Set I2C GPIO pins
+     */
+    GPIOPinTypeI2C(I2CSDAPort, I2CSDA_PIN);
+    GPIOPinTypeI2CSCL(I2CSCLPort, I2CSCL_PIN);
+    GPIOPinConfigure(I2CSCL);
+    GPIOPinConfigure(I2CSDA);
+
+    /*
+     * Setup I2C
+     */
+    I2CMasterInitExpClk(I2C0_BASE, SysCtlClockGet(), false);
+    
+   /* Initialize the Accelerometer
+     *
+     */
+    GPIOPinTypeGPIOInput(ACCL_INT2Port, ACCL_INT2);
+
+    rgchWriteAccl[0] = chPwrCtlReg;
+    rgchWriteAccl[1] = 1 << 3;		// sets Accl in measurement mode
+    I2CGenTransmit(rgchWriteAccl, 1, WRITE, ACCLADDR);
+    
+    rgchReadAccl[0] = chX0Addr;
+    rgchReadAccl2[0] = chY0Addr;
+    rgchReadAccl3[0] = chZ0Addr;
+    
+    I2CGenTransmit(rgchReadAccl, 2, READ, ACCLADDR);
+    I2CGenTransmit(rgchReadAccl2, 2, READ, ACCLADDR);
+    I2CGenTransmit(rgchReadAccl3, 2, READ, ACCLADDR);
+    
+    dataX = (rgchReadAccl[2] << 8) | rgchReadAccl[1];
+    dataY = (rgchReadAccl2[2] << 8) | rgchReadAccl2[1];
+    dataZ = (rgchReadAccl3[2] << 8) | rgchReadAccl2[1];
+    
+    if(dataX > 150 || dataX < -150 || dataY > 150 || dataY < -150)
+       refresh = 1;
+     else refresh = 0;
+
+     return refresh;
+}
+
+
+unsigned int accelerometer_seed(){  //int accel_buffer[]){
+  
+  short	dataX;
+  short dataY;
+  short dataZ;
+  int refresh;
+  
+  char  chPwrCtlReg = 0x2D;
+  char 	chX0Addr = 0x32;
+  char  chY0Addr = 0x34;
+  char  chZ0Addr = 0x36;
+  
+  char 	rgchReadAccl[] = {
+    0, 0, 0            };
+  char 	rgchWriteAccl[] = {
+    0, 0            };
+  char  rgchReadAccl2[] = {
+    0, 0, 0            };  
+  char  rgchReadAccl3[] = {
+    0, 0, 0            };
+    
+    /*
+     * Enable I2C Peripheral
+     */
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_I2C0);
+    SysCtlPeripheralReset(SYSCTL_PERIPH_I2C0);
+
+    /*
+     * Set I2C GPIO pins
+     */
+    GPIOPinTypeI2C(I2CSDAPort, I2CSDA_PIN);
+    GPIOPinTypeI2CSCL(I2CSCLPort, I2CSCL_PIN);
+    GPIOPinConfigure(I2CSCL);
+    GPIOPinConfigure(I2CSDA);
+
+    /*
+     * Setup I2C
+     */
+    I2CMasterInitExpClk(I2C0_BASE, SysCtlClockGet(), false);
+    
+   /* Initialize the Accelerometer
+     *
+     */
+    GPIOPinTypeGPIOInput(ACCL_INT2Port, ACCL_INT2);
+
+    rgchWriteAccl[0] = chPwrCtlReg;
+    rgchWriteAccl[1] = 1 << 3;		// sets Accl in measurement mode
+    I2CGenTransmit(rgchWriteAccl, 1, WRITE, ACCLADDR);
+    
+    rgchReadAccl[0] = chX0Addr;
+    rgchReadAccl2[0] = chY0Addr;
+    rgchReadAccl3[0] = chZ0Addr;
+    
+    I2CGenTransmit(rgchReadAccl, 2, READ, ACCLADDR);
+    I2CGenTransmit(rgchReadAccl2, 2, READ, ACCLADDR);
+    I2CGenTransmit(rgchReadAccl3, 2, READ, ACCLADDR);
+    
+    dataX = (rgchReadAccl[2] << 8) | rgchReadAccl[1];
+    dataY = (rgchReadAccl2[2] << 8) | rgchReadAccl2[1];
+    dataZ = (rgchReadAccl3[2] << 8) | rgchReadAccl2[1];
+    
+    return (1+dataX)*(1+dataY)*(1+dataZ);
+}
+
+
+
+
+char I2CGenTransmit(char * pbData, int cSize, bool fRW, char bAddr) {
+
+  int 	i;
+  char * pbTemp;
+
+  pbTemp = pbData;
+
+  /*Start*/
+
+  /*Send Address High Byte*/
+  /* Send Write Block Cmd*/
+  I2CMasterSlaveAddrSet(I2C0_BASE, bAddr, WRITE);
+  I2CMasterDataPut(I2C0_BASE, *pbTemp);
+
+  I2CMasterControl(I2C0_BASE, I2C_MASTER_CMD_BURST_SEND_START);
+
+  DelayMs(1);
+
+  /* Idle wait*/
+  while(I2CGenIsNotIdle());
+
+  /* Increment data pointer*/
+  pbTemp++;
+
+  /*Execute Read or Write*/
+
+  if(fRW == READ) {
+
+    /* Resend Start condition
+	** Then send new control byte
+	** then begin reading
+	*/
+    I2CMasterSlaveAddrSet(I2C0_BASE, bAddr, READ);
+
+    while(I2CMasterBusy(I2C0_BASE));
+
+    /* Begin Reading*/
+    for(i = 0; i < cSize; i++) {
+
+      if(cSize == i + 1 && cSize == 1) {
+        I2CMasterControl(I2C0_BASE, I2C_MASTER_CMD_SINGLE_RECEIVE);
+
+        DelayMs(1);
+
+        while(I2CMasterBusy(I2C0_BASE));
+      }
+      else if(cSize == i + 1 && cSize > 1) {
+        I2CMasterControl(I2C0_BASE, I2C_MASTER_CMD_BURST_RECEIVE_FINISH);
+
+        DelayMs(1);
+
+        while(I2CMasterBusy(I2C0_BASE));
+      }
+      else if(i == 0) {
+        I2CMasterControl(I2C0_BASE, I2C_MASTER_CMD_BURST_RECEIVE_START);
+
+        DelayMs(1);
+
+        while(I2CMasterBusy(I2C0_BASE));
+
+        /* Idle wait*/
+        while(I2CGenIsNotIdle());
+      }
+      else {
+        I2CMasterControl(I2C0_BASE, I2C_MASTER_CMD_BURST_RECEIVE_CONT);
+
+        DelayMs(1);
+
+        while(I2CMasterBusy(I2C0_BASE));
+
+        /* Idle wait */
+        while(I2CGenIsNotIdle());
+      }
+
+      while(I2CMasterBusy(I2C0_BASE));
+
+      /* Read Data */
+      *pbTemp = (char)I2CMasterDataGet(I2C0_BASE);
+
+      pbTemp++;
+
+    }
+
+  }
+  else if(fRW == WRITE) {
+
+    /*Loop data bytes */
+    for(i = 0; i < cSize; i++) {
+      /* Send Data */
+      I2CMasterDataPut(I2C0_BASE, *pbTemp);
+
+      while(I2CMasterBusy(I2C0_BASE));
+
+      if(i == cSize - 1) {
+        I2CMasterControl(I2C0_BASE, I2C_MASTER_CMD_BURST_SEND_FINISH);
+
+        DelayMs(1);
+
+        while(I2CMasterBusy(I2C0_BASE));
+      }
+      else {
+        I2CMasterControl(I2C0_BASE, I2C_MASTER_CMD_BURST_SEND_CONT);
+
+        DelayMs(1);
+
+        while(I2CMasterBusy(I2C0_BASE));
+
+        /* Idle wait */
+        while(I2CGenIsNotIdle());
+      }
+
+      pbTemp++;
+    }
+
+  }
+
+  /*Stop*/
+
+  return 0x00;
+}
+
+/* ------------------------------------------------------------ */
+/***	I2CGenIsNotIdle()
+ **
+ **	Parameters:
+ **		pbData	-	Pointer to transmit buffer (read or write)
+ **		cSize	-	Number of byte transactions to take place
+ **
+ **	Return Value:
+ **		TRUE is bus is not idle, FALSE if bus is idle
+ **
+ **	Errors:
+ **		none
+ **
+ **	Description:
+ **		Returns TRUE if the bus is not idle
+ **
+ */
+bool I2CGenIsNotIdle() {
+
+  return !I2CMasterBusBusy(I2C0_BASE);
 
 }
